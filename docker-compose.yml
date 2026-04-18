@@ -1,0 +1,29 @@
+version: "3.9"
+
+services:
+  mlflow:
+    image: mlflow:latest
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./mlruns:/mlruns
+    command: mlflow server --host 0.0.0.0 --port 5000 --backend-store-uri sqlite:///mlruns/mlflow.db --default-artifact-root /mlruns
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+      - TOXICITY_MODEL_NAME=StrucToxNet
+      - TOXICITY_MODEL_VERSION=1
+      - ALLERGENICITY_MODEL_NAME=AllergenAI
+      - ALLERGENICITY_MODEL_VERSION=1
+      - BCELL_MODEL_NAME=BcellPred
+      - BCELL_MODEL_VERSION=1
+      - TCELL_MODEL_NAME=TcellPred
+      - TCELL_MODEL_VERSION=1
+      - STABILITY_MODEL_NAME=StabilityOracle
+      - STABILITY_MODEL_VERSION=1
+    depends_on:
+      - mlflow
