@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Antibody Safety & Property Scoring</title>
+  <link
+    href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+    rel="stylesheet"
+  />
+  <style>
+    .container { max-width: 1000px; }
+    .form-control { margin-bottom: 10px; }
+    #healthResult { white-space: pre-wrap; font-size: 0.9em; }
+    #scoreResult { white-space: pre-wrap; font-size: 0.95em; }
+  </style>
+</head>
+<body>
+  <div class="container mt-4">
+    <h1 class="mb-3">Antibody Safety & Property Scoring</h1>
+    <p class="lead">
+      Введите аминокислотную последовательность (AA) и получите скоринг по токсичности, аллергенности, B/T‑эпитопам, стабильности и ProtParam‑свойствам.
+    </p>
+
+    <!-- Health check -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5>Service health</h5>
+      </div>
+      <div class="card-body">
+        <button type="button" class="btn btn-outline-primary" id="btnHealth">
+          Check health
+        </button>
+        <div id="healthResult" class="alert alert-secondary mt-2 d-none"></div>
+      </div>
+    </div>
+
+    <!-- Score form -->
+    <div class="card mb-4">
+      <div class="card-header">
+        <h5>Score antibody / peptide</h5>
+      </div>
+      <div class="card-body">
+        <form id="frmScore">
+          <div class="mb-3">
+            <label for="seq" class="form-label">Аминокислотная последовательность (AA):</label>
+            <textarea
+              class="form-control"
+              id="seq"
+              name="sequence"
+              rows="6"
+              placeholder="Пример (антитело):&#10;QVQLVQSGAEVKKPGASVKVSCKASGYTFTSYWMHWVRQAPGQGLEWIGEIIGPGNGDTSYNEKFQGRATLTADKSSSTAYMELRSLTSEDSAVYFCAR..."
+            ></textarea>
+          </div>
+          <div class="mb-3">
+            <label for="modeSelect" class="form-label">Mode:</label>
+            <select class="form-select" id="modeSelect" name="mode">
+              <option value="light">light – только heuristic‑правила</option>
+              <option value="full" selected>full – SOTA‑модели из MLflow</option>
+            </select>
+          </div>
+          <button type="submit" class="btn btn-primary">Calculate</button>
+        </form>
+        <div id="scoreResult" class="alert alert-secondary mt-3 d-none"></div>
+      </div>
+    </div>
+
+  </div>
+
+  <script>
+    const API_BASE = "";
+
+    async function fetchJson(url, options) {
+      const resp = await fetch(API_BASE + url, options);
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({ detail: resp.statusText }));
+        throw new Error(err.detail || "Unknown error");
+      }
+      return resp.json();
+    }
+
+    async function renderResponse(selector, data) {
+      const el = document.querySelector(selector);
+      el.textContent = JSON.stringify(data, null, 2);
+      el.classList.remove("d-none");
+    }
+
+    async function renderError(selector, message) {
+      const el = document.querySelector(selector);
+      el.textContent = message;
+      el.className = "alert alert-danger mt-2";
+      el.classList.remove("d-none");
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      // Health check
+      document.getElementById("btnHealth").addEventListener("click", async () => {
+        const resultEl = "#healthResult";
+        document.querySelector(resultEl).classList.add("d-none");
+        try {
+          const data = await fetchJson("/health");
+          await renderResponse(resultEl, data);
+        } catch (e) {
+          await renderError(resultEl, "Health check error: " + e.message);
+        }
+      });
+
+      // Score request
+      document.getElementById("frmScore").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const resultEl = "#scoreResult";
+        document.querySelector(resultEl).classList.add("d-none");
+
+        const seq = document.getElementById("seq").value.trim();
+        const mode = document.getElementById("modeSelect").value;
+
+        if (!seq) {
+          await renderError(resultEl, "Пожалуйста, введите последовательность.");
+          return;
+        }
+
+        try {
+          const body = JSON.stringify({ sequence: seq, mode });
+          const data = await fetchJson("/score", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body,
+          });
+          await renderResponse(resultEl, data);
+        } catch (e) {
+          await renderError(resultEl, "Ошибка расчета: " + e.message);
+        }
+      });
+    });
+  </script>
+</body>
+</html>
