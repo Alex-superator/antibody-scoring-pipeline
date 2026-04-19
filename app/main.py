@@ -10,7 +10,7 @@ from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.mlflow_loader import registry
-from app.models import ProteinRequest, ScoreResponse
+from app.models import ProteinRequest, ScoreResponse, RiskScore, PropertyScore
 from app.pipeline import ScorePipeline
 
 
@@ -26,15 +26,12 @@ async def lifespan(app: FastAPI):
     try:
         registry.load_models(dict(os.environ))
     except Exception as e:
-        # Приложение стартует даже если MLflow временно недоступен,
-        # но full-mode тогда будет падать с понятной ошибкой.
         app.state.model_load_error = str(e)
     else:
         app.state.model_load_error = None
 
     yield
 
-    # Здесь можно освобождать ресурсы, если будут GPU/сессии/соединения.
     registry.toxicity_model = None
     registry.allergenicity_model = None
     registry.bcell_model = None
@@ -91,30 +88,31 @@ async def score_protein(req: ProteinRequest):
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal error: {e}")
 
-    risk = {
-        "toxicity": raw["toxicity"],
-        "allergenicity": raw["allergenicity"],
-        "bcell_epitope": raw["bcell_epitope"],
-        "tcell_epitope": raw["tcell_epitope"],
-        "instability": raw["instability"],
-        "overall_risk": raw["overall_risk"],
-    }
+    # все свойства в корне raw
+    properties = PropertyScore(
+        molecular_weight=float(raw.get("molecular_weight", 0.0)),
+        isoelectric_point=float(raw.get("isoelectric_point", 0.0)),
+        aromaticity=float(raw.get("aromaticity", 0.0)),
+        instability_index=float(raw.get("instability_index", 0.0)),
+        aliphatic_index=raw.get("aliphatic_index"),  # None OK
+        gravy=float(raw.get("gravy", 0.0)),
+        half_life=raw.get("half_life"),              # None OK
+        charge=float(raw.get("charge", 0.0)),
+        flexibility=float(raw.get("flexibility", 0.0)),
+        amino_acid_composition=dict(raw.get("amino_acid_composition", {})),
+    )
 
-    properties = {
-        "molecular_weight": raw["molecular_weight"],
-        "isoelectric_point": raw["isoelectric_point"],
-        "aromaticity": raw["aromaticity"],
-        "instability_index": raw["instability_index"],
-        "aliphatic_index": raw["aliphatic_index"],
-        "gravy": raw["gravy"],
-        "half_life": raw["half_life"],
-        "charge": raw["charge"],
-        "flexibility": raw["flexibility"],
-        "amino_acid_composition": raw["amino_acid_composition"],
-    }
+    risk = RiskScore(
+        toxicity=float(raw.get("toxicity", 0.0)),
+        allergenicity=float(raw.get("allergenicity", 0.0)),
+        bcell_epitope=float(raw.get("bcell_epitope", 0.0)),
+        tcell_epitope=float(raw.get("tcell_epitope", 0.0)),
+        instability=float(raw.get("instability", 0.0)),
+        overall_risk=float(raw.get("overall_risk", 0.0)),
+    )
 
     return ScoreResponse(
-        sequence_len=raw["sequence_len"],
+        sequence_len=int(raw.get("sequence_len", len(seq))),
         risk=risk,
         properties=properties,
         raw=raw,

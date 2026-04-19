@@ -1,14 +1,10 @@
-from typing import Literal, Dict, Any
+from typing import Literal, Dict, Any, Optional
 from pydantic import BaseModel, Field
 
 
 class ProteinRequest(BaseModel):
-    sequence: str = Field(
-        ..., min_length=5, max_length=10_000, description="Аминокислотная последовательность (AA‑codes)"
-    )
-    mode: Literal["light", "full"] = Field(
-        "light", description="light – быстрые правила, full – SOTA‑модели из MLflow"
-    )
+    sequence: str = Field(..., min_length=5, max_length=10_000)
+    mode: Literal["light", "full"] = Field("light")
 
 
 class RiskScore(BaseModel):
@@ -25,12 +21,12 @@ class PropertyScore(BaseModel):
     isoelectric_point: float
     aromaticity: float
     instability_index: float
-    aliphatic_index: float
     gravy: float
-    half_life: float
     charge: float
     flexibility: float
     amino_acid_composition: Dict[str, int]
+    half_life: Optional[float] = None           # ← ИСПРАВЛЕНО
+    aliphatic_index: Optional[float] = None     # ← ИСПРАВЛЕНО
 
 
 class ScoreResponse(BaseModel):
